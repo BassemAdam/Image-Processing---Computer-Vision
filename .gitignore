@@ -31,3 +31,4 @@ Thumbs.db
 # Ignore Python cache files
 __pycache__/
 *.pyc
+Labs/Lab1-std.zip
