@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage.exposure import histogram
 from matplotlib.pyplot import bar
-from skimage.color import rgb2gray,rgb2hsv
+from skimage.color import rgb2gray,rgb2hsv,rgba2rgb
 
 # Convolution:
 from scipy.signal import convolve2d
@@ -43,11 +43,6 @@ def show_images(images,titles=None):
 def showHist(img):
     # An "interface" to matplotlib.axes.Axes.hist() method
     plt.figure()
-    
-    # Check if image values are in the range 0 to 1
-    if img.max() <= 1.0:
-        img = (img * 255).astype(np.uint8)
-    
     imgHist = histogram(img, nbins=256)
     
     bar(imgHist[1].astype(np.uint8), imgHist[0], width=0.8, align='center')
