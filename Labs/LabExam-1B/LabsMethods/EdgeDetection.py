@@ -27,8 +27,25 @@ def prewitt_operator():
                           [1, 1, 1]])
     return prewitt_x, prewitt_y
 
+def is_rgb(image):
+    """Check if image is RGB."""
+    return len(image.shape) == 3 and image.shape[2] == 3
+
+def process_rgb_channels(image, function, *args, **kwargs):
+    """Apply function to each RGB channel."""
+    # Convert to float for processing
+    r, g, b = image[:,:,0], image[:,:,1], image[:,:,2]
+    r_processed = function(r, *args, **kwargs)
+    g_processed = function(g, *args, **kwargs)
+    b_processed = function(b, *args, **kwargs)
+    # Combine channels
+    return np.dstack((r_processed, g_processed, b_processed))
+
 def detect_edges_sobel(image):
     """Detect edges using Sobel operator."""
+    if is_rgb(image):
+        return process_rgb_channels(image, detect_edges_sobel)
+    
     sobel_x, sobel_y = sobel_operator()
     
     # Apply convolution
@@ -45,6 +62,9 @@ def detect_edges_sobel(image):
 
 def detect_edges_prewitt(image):
     """Detect edges using Prewitt operator."""
+    if is_rgb(image):
+        return process_rgb_channels(image, detect_edges_prewitt)
+    
     prewitt_x, prewitt_y = prewitt_operator()
     
     gradient_x = ndimage.convolve(image, prewitt_x)
@@ -63,12 +83,21 @@ def laplacian_operator():
 
 def detect_edges_laplacian(image):
     """Detect edges using Laplacian operator."""
+    if is_rgb(image):
+        return process_rgb_channels(image, detect_edges_laplacian)
+    
     laplacian = laplacian_operator()
     edges = ndimage.convolve(image, laplacian)
     return np.uint8(np.absolute(edges))
 
 def canny_edge_detection(image, low_threshold=50, high_threshold=150, sigma=1):
     """Implement Canny edge detection."""
+    if is_rgb(image):
+        # For RGB, process intensity channel only
+        # Convert to grayscale using luminosity method
+        gray = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+        return canny_edge_detection(gray, low_threshold, high_threshold, sigma)
+    
     # 1. Gaussian smoothing
     smoothed = ndimage.gaussian_filter(image, sigma)
     
@@ -116,3 +145,100 @@ def canny_edge_detection(image, low_threshold=50, high_threshold=150, sigma=1):
                     final_edges[i, j] = 1
     
     return np.uint8(final_edges * 255)
+
+
+def unsharp_mask(image, radius=1, amount=1.0, threshold=0):
+    """Advanced unsharp masking with edge-awareness.
+    
+    Args:
+        image: Input image
+        radius: Gaussian blur radius
+        amount: Sharpening strength (1.0-2.0 typical)
+        threshold: Minimum brightness difference to sharpen
+    """
+    if is_rgb(image):
+        return process_rgb_channels(image, unsharp_mask, radius, amount, threshold)
+    
+    # Convert to float for processing
+    image = image.astype(np.float32)
+    
+    # Create blurred version
+    blurred = ndimage.gaussian_filter(image, radius)
+    
+    # Calculate high-pass (detail) component
+    highpass = image - blurred
+    
+    # Calculate local contrast for edge-awareness
+    local_contrast = ndimage.gaussian_filter(np.abs(highpass), radius * 2)
+    
+    # Create edge-aware mask
+    edge_mask = 1.0 / (1.0 + np.exp(-local_contrast + threshold))
+    
+    # Apply sharpening with edge-awareness
+    sharpened = image + (highpass * amount * edge_mask)
+    
+    # Clip values and convert back to uint8
+    return np.clip(sharpened, 0, 255).astype(np.uint8)
+
+def adaptive_sharpen(image, radius=1, amount=1.0, threshold=0):
+    """Adaptive sharpening based on local image properties.
+    
+    Args:
+        image: Input image
+        radius: Base radius for Gaussian operations
+        amount: Base sharpening amount
+        threshold: Minimum difference for sharpening
+    """
+    if is_rgb(image):
+        return process_rgb_channels(image, adaptive_sharpen, radius, amount, threshold)
+    
+    # Convert to float
+    image = image.astype(np.float32)
+    
+    # Calculate local variance for adaptivity
+    local_var = ndimage.gaussian_filter((image - ndimage.gaussian_filter(image, radius))**2, radius*2)
+    
+    # Create adaptive radius and amount maps
+    radius_map = radius * (1.0 + np.exp(-local_var/128.0))
+    amount_map = amount * (1.0 + local_var/128.0)
+    
+    # Apply unsharp masking with varying parameters
+    height, width = image.shape
+    output = np.zeros_like(image)
+    
+    for i in range(height):
+        for j in range(width):
+            r = radius_map[i,j]
+            patch = image[max(0,i-2):min(height,i+3), max(0,j-2):min(width,j+3)]
+            blurred = ndimage.gaussian_filter(patch, r)
+            highpass = patch - blurred
+            output[i,j] = image[i,j] + (highpass[2,2] * amount_map[i,j])
+    
+    return np.clip(output, 0, 255).astype(np.uint8)
+
+def edge_aware_sharpen(image, radius=1, amount=1.0, threshold=10):
+    """Edge-aware sharpening using gradient information.
+    
+    Args:
+        image: Input image
+        radius: Gaussian blur radius
+        amount: Sharpening strength
+        threshold: Edge detection threshold
+    """
+    if is_rgb(image):
+        return process_rgb_channels(image, edge_aware_sharpen, radius, amount, threshold)
+    
+    # Get edge information using Sobel
+    sobel_x, sobel_y = sobel_operator()
+    grad_x = ndimage.convolve(image, sobel_x)
+    grad_y = ndimage.convolve(image, sobel_y)
+    gradient = np.sqrt(grad_x**2 + grad_y**2)
+    
+    # Create edge-aware mask
+    edge_mask = gradient > threshold
+    
+    # Apply unsharp masking only to non-edge regions
+    sharpened = unsharp_mask(image, radius, amount)
+    
+    # Blend based on edge mask
+    return np.where(edge_mask, image, sharpened)

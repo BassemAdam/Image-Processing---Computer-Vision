@@ -100,7 +100,136 @@ def print_image_details(image):
 # Example usage:
 # print_image_details('image.png')
 # print_image_details(img_rgb)
+def normalize_image_range(image):
+    """
+    Normalize image values to 0-255 range if needed.
+    
+    Args:
+        image (numpy.ndarray): Input image
+        
+    Returns:
+        numpy.ndarray: Image with values in 0-255 range
+    """
+    if image.max() <= 1.0:
+        return (image * 255).astype(np.uint8)
+    return image.astype(np.uint8)
 
+def show_histogram(image, title="Image Histogram"):
+    """
+    Display histogram for grayscale image or separate RGB channel histograms.
+    Handles both 0-1 and 0-255 value ranges.
+    
+    Args:
+        image (numpy.ndarray): Input image (grayscale or RGB)
+        title (str): Main title for the plot
+    """
+    # Normalize image range if needed
+    image = normalize_image_range(image)
+    
+    plt.figure(figsize=(12, 4))
+    
+    if len(image.shape) == 3:  # RGB image
+        colors = ('red', 'green', 'blue')
+        plt.suptitle(f"{title} - RGB Channels", fontsize=12)
+        
+        for i, color in enumerate(colors):
+            plt.subplot(1, 3, i+1)
+            histogram, bins = np.histogram(image[:,:,i], bins=256, range=(0, 256))
+            plt.plot(bins[:-1], histogram, color=color, alpha=0.7)
+            plt.fill_between(bins[:-1], histogram, alpha=0.3, color=color)
+            plt.title(f'{color.capitalize()} Channel')
+            plt.xlabel('Pixel Value')
+            plt.ylabel('Frequency')
+            plt.grid(True, alpha=0.2)
+            
+    else:  # Grayscale image
+        plt.suptitle(f"{title} - Grayscale", fontsize=12)
+        histogram, bins = np.histogram(image, bins=256, range=(0, 256))
+        plt.plot(bins[:-1], histogram, color='gray', alpha=0.7)
+        plt.fill_between(bins[:-1], histogram, alpha=0.3, color='gray')
+        plt.xlabel('Pixel Value')
+        plt.ylabel('Frequency')
+        plt.grid(True, alpha=0.2)
+    
+    plt.tight_layout()
+    plt.show()
+
+def compare_histograms(image1, image2, title1="Before", title2="After"):
+    """
+    Compare histograms of two images side by side.
+    Handles both 0-1 and 0-255 value ranges.
+    
+    Args:
+        image1 (numpy.ndarray): First image
+        image2 (numpy.ndarray): Second image
+        title1 (str): Title for first image
+        title2 (str): Title for second image
+    """
+    # Normalize image ranges if needed
+    image1 = normalize_image_range(image1)
+    image2 = normalize_image_range(image2)
+    
+    fig = plt.figure(figsize=(15, 5))
+    
+    # First image
+    if len(image1.shape) == 3:  # RGB
+        plt.subplot(2, 3, 1)
+        plt.imshow(image1)
+        plt.title(title1)
+        plt.axis('off')
+        
+        colors = ('red', 'green', 'blue')
+        for i, color in enumerate(colors):
+            plt.subplot(2, 3, i+4)
+            histogram = cv2.calcHist([image1], [i], None, [256], [0, 256])
+            plt.plot(histogram, color=color, alpha=0.7)
+            plt.fill_between(range(256), histogram.flatten(), alpha=0.3, color=color)
+            plt.title(f'{color.capitalize()} Channel')
+            plt.grid(True, alpha=0.2)
+    else:  # Grayscale
+        plt.subplot(2, 2, 1)
+        plt.imshow(image1, cmap='gray')
+        plt.title(title1)
+        plt.axis('off')
+        
+        plt.subplot(2, 2, 3)
+        histogram = cv2.calcHist([image1], [0], None, [256], [0, 256])
+        plt.plot(histogram, color='gray', alpha=0.7)
+        plt.fill_between(range(256), histogram.flatten(), alpha=0.3, color='gray')
+        plt.title('Histogram')
+        plt.grid(True, alpha=0.2)
+    
+    # Second image
+    if len(image2.shape) == 3:  # RGB
+        plt.subplot(2, 3, 2)
+        plt.imshow(image2)
+        plt.title(title2)
+        plt.axis('off')
+        
+        for i, color in enumerate(colors):
+            plt.subplot(2, 3, i+4)
+            histogram = cv2.calcHist([image2], [i], None, [256], [0, 256])
+            plt.plot(histogram, color=color, linestyle='--', alpha=0.7)
+    else:  # Grayscale
+        plt.subplot(2, 2, 2)
+        plt.imshow(image2, cmap='gray')
+        plt.title(title2)
+        plt.axis('off')
+        
+        plt.subplot(2, 2, 4)
+        histogram = cv2.calcHist([image2], [0], None, [256], [0, 256])
+        plt.plot(histogram, color='gray', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    plt.show()
+# # Show single histogram
+# show_histogram(img_rgb, "Original Image")
+
+# # Compare before/after
+# compare_histograms(img_after_median_filter, 
+#                   img_after_contrast_enhancement1,
+#                   "Before Enhancement",
+#                   "After Enhancement")
 def remove_gaussian_noise(image, sigma):
     """
     Remove Gaussian noise from an image using a Gaussian filter.

@@ -2,16 +2,24 @@ import numpy as np
 from scipy import ndimage
 from sklearn.cluster import KMeans
 
+def is_rgb(image):
+    """Check if image is RGB."""
+    return len(image.shape) == 3 and image.shape[2] == 3
+
+def rgb_to_gray(image):
+    """Convert RGB to grayscale using luminosity method."""
+    return np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+
 def otsu_threshold(image):
     """Implement Otsu's thresholding method."""
-    # Calculate histogram
+    if is_rgb(image):
+        image = rgb_to_gray(image)
+        
     hist = np.histogram(image, bins=256, range=(0, 256))[0]
     total_pixels = np.sum(hist)
     
     max_variance = 0
     optimal_threshold = 0
-    
-    # Calculate sum and mean
     current_sum = 0
     total_sum = sum(i * hist[i] for i in range(256))
     
@@ -25,7 +33,6 @@ def otsu_threshold(image):
             
         mean_background = current_sum / w_background
         mean_foreground = (total_sum - current_sum) / w_foreground
-        
         variance = w_background * w_foreground * (mean_background - mean_foreground) ** 2
         
         if variance > max_variance:
@@ -36,11 +43,12 @@ def otsu_threshold(image):
 
 def region_growing(image, seed_point, threshold=10):
     """Implement region growing segmentation."""
+    if is_rgb(image):
+        image = rgb_to_gray(image)
+        
     height, width = image.shape
     segmented = np.zeros_like(image, dtype=np.bool_)
     seed_value = image[seed_point]
-    
-    # Initialize stack with seed point
     stack = [seed_point]
     segmented[seed_point] = True
     
@@ -48,14 +56,11 @@ def region_growing(image, seed_point, threshold=10):
         current_point = stack.pop()
         x, y = current_point
         
-        # Check neighbors
         for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
             new_x, new_y = x + dx, y + dy
-            
             if (0 <= new_x < height and 0 <= new_y < width and
                 not segmented[new_x, new_y] and
                 abs(int(image[new_x, new_y]) - int(seed_value)) <= threshold):
-                
                 segmented[new_x, new_y] = True
                 stack.append((new_x, new_y))
     
@@ -63,51 +68,48 @@ def region_growing(image, seed_point, threshold=10):
 
 def watershed_segmentation(image):
     """Implement watershed segmentation."""
-    # Calculate gradient magnitude
+    if is_rgb(image):
+        image = rgb_to_gray(image)
+        
     gradient_x = ndimage.sobel(image, axis=0)
     gradient_y = ndimage.sobel(image, axis=1)
     gradient = np.sqrt(gradient_x**2 + gradient_y**2)
     
-    # Find local minima
     local_min = ndimage.minimum_filter(gradient, size=3) == gradient
     markers, num_features = ndimage.label(local_min)
-    
-    # Watershed transform
     watershed = ndimage.watershed_ift(gradient.astype(np.uint8), markers)
     
     return watershed
 
 def kmeans_segmentation(image, n_clusters=3):
     """Implement k-means clustering segmentation."""
-    # Reshape image for clustering
-    pixels = image.reshape((-1, 1))
+    if is_rgb(image):
+        # For RGB, reshape to (#pixels, 3) for clustering
+        pixels = image.reshape(-1, 3)
+    else:
+        pixels = image.reshape((-1, 1))
     
-    # Apply k-means clustering
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     labels = kmeans.fit_predict(pixels)
-    
-    # Reshape back to image dimensions
-    segmented = labels.reshape(image.shape)
-    
-    return segmented
+    return labels.reshape(image.shape[:-1] if is_rgb(image) else image.shape)
 
 def adaptive_threshold(image, block_size=11, c=2):
     """Implement adaptive thresholding."""
-    # Calculate mean of neighborhood
+    if is_rgb(image):
+        image = rgb_to_gray(image)
+        
     mean = ndimage.uniform_filter(image, size=block_size)
-    
-    # Threshold based on mean
     return image > (mean - c)
 
 def multi_otsu_threshold(image, n_classes=3):
     """Implement multi-level Otsu thresholding."""
+    if is_rgb(image):
+        image = rgb_to_gray(image)
+        
     hist = np.histogram(image, bins=256, range=(0, 256))[0]
-    
-    # Initialize thresholds
     thresholds = np.zeros(n_classes - 1, dtype=np.int32)
     max_variance = 0
     
-    # Exhaustive search for optimal thresholds
     for t1 in range(0, 256):
         for t2 in range(t1 + 1, 256):
             w0 = np.sum(hist[:t1])
