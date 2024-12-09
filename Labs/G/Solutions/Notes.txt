@@ -1,0 +1,6 @@
+In Fall 2022 Model A:
+- I took liberty to modify commonfunctions to include the morphological operations and gaussian functions
+
+In Fall 2023 Model B:
+- I handpicked the entirety of commonfunctions so take care as the lab exam may not have everything already given
+- As of now I haven't tried k-means on q3 but I have hope it will work and give a better result ISA
